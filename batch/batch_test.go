@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jfcote87/google-api-go-client/batch"
+	"github.com/kurtschwarz/google-api-go-client/batch"
 
 	"io/ioutil"
 
@@ -293,6 +293,23 @@ func TestAddRequest(t *testing.T) {
 	if results[0].Tag != "3rd Request" || tx.A != "STRING" || tx.B != 9 {
 		t.Errorf("Wanted 3rd Response with value of {\"A\":\"STRING\", \"B\":9}; got %s - %v", results[0].Tag, tx)
 	}
+}
+
+func TestAddHomogeneousRequest(t *testing.T) {
+	var tx *TestStruct
+
+	sv := &batch.Service{}
+	sv.Client = &http.Client{Transport: &TestTransport{}}
+	sv.MaxRequests = 2
+
+	//
+	req, _ := http.NewRequest("GET", "https://www.googleapis.com/gmail/v1/users/xxxxxxxxx/profile", bytes.NewBuffer([]byte("PAYLOAD")))
+	req.Header.Set("host", "testHost")
+	req.Header.Set("User-Agent", "TestUA")
+	_, d := batch.BatchClient.Do(req)
+	_ = sv.AddRequest(d, batch.SetResult(&tx), batch.SetTag("1st Request"))
+
+	return
 }
 
 type TestTransport struct{}

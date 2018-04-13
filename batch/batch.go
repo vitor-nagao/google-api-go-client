@@ -22,6 +22,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -163,6 +164,9 @@ type Service struct {
 	mu           sync.Mutex
 	requests     []*Request
 	initBuffSize int
+	// used for homogeneous batching
+	api     string
+	version string
 }
 
 // AddRequest adds a Request to the service with the corresponding options.  See
@@ -192,6 +196,33 @@ func (s *Service) AddRequest(e error, opts ...RequestOption) (err error) {
 	if r.data == nil {
 		return
 	}
+
+	// look at the request uri to build a better batch request
+	if ex, ok := e.(*url.Error); ok {
+		url := ex.URL
+		api := s.api
+		version := s.version
+
+		parts := regexp.MustCompile(`https?:\/\/(.+)\.googleapis\.com\/([^/]+)`).FindStringSubmatch(url)
+		if len(parts) >= 1 && parts[1] == "www" {
+			api = parts[2]
+		} else if len(parts) >= 1 && parts[1] != "www" {
+			api = parts[1]
+		}
+
+		parts = regexp.MustCompile(`\/v([^/]+)\/`).FindStringSubmatch(url)
+		if len(parts) >= 2 {
+			version = parts[1]
+		}
+
+		if len(s.api) == 0 {
+			s.api = api
+			s.version = version
+		} else if s.api != api {
+			return fmt.Errorf("unable to batch heterogeneous requests")
+		}
+	}
+
 	// Process options and return error
 	for _, o := range opts {
 		if err = o(r); err != nil {
@@ -308,7 +339,7 @@ func (s *Service) DoCtx(ctx context.Context) ([]Response, error) {
 	}
 
 	// Create req to send batches
-	req, err := http.NewRequest("POST", baseURL, outputBuf)
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/%s/v%s", baseURL, s.api, s.version), outputBuf)
 	if err != nil {
 		return nil, err
 	}
