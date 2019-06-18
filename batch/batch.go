@@ -339,8 +339,8 @@ func (s *Service) DoCtx(ctx context.Context) ([]Response, error) {
 	}
 
 	// Create req to send batches
-	url := baseURL
-	if len(s.api) > 0 {
+	url := fmt.Sprintf("%s/%s/v%s", baseURL, s.api, s.version)
+	if s.api == "indexing" {
 		url = fmt.Sprintf("https://%s.googleapis.com/batch", s.api)
 	}
 	req, err := http.NewRequest("POST", url, outputBuf)
